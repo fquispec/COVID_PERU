@@ -1,0 +1,91 @@
+rm(list = ls())
+library(compositions); library(mgcv);library(robCompositions);library(hydroGOF);library(zCompositions)
+library(graphics);library(car);library(tidyverse);library(lubridate);library(haven);library(expss);
+library(ggplot2)
+setwd("C:/Users/aleja/Downloads");
+filename<-"positivos_covid (1).csv";
+data2<-read.csv(file=filename, header=TRUE, sep = ",", dec = ".");
+data3=data2[,1:8]
+#Recodificando
+data3$ed <- Recode(data3$EDAD, "0:3=1; 4:5=2; 6:65=3; 66:115=4")
+table(data3$ed)
+
+###Recodificando los NA (Se considera que aún está pendiente de subir los datos o faltan procesar)
+data3$ed[is.na(data3$ed)] <- 5
+table(data3$ed)
+
+#Label
+data3$edl <- factor(data3$ed, labels = c("x1", "x2", "x3", "x4","x5"))
+table(data3$edl)
+data4=data3[,1:10]
+tabla_matp <-xtabs(~FECHA_RESULTADO+edl, data = data4)
+tabla_matp
+
+#convirtiendo los datos en un data frame
+tabla2_matp <- as.data.frame(tabla_matp)
+tabla2_matp
+
+library(reshape2)
+
+matp <- dcast(tabla2_matp, FECHA_RESULTADO ~ edl)
+t1=as.Date(matp$FECHA_RESULTADO,format="%d/%m/%Y")
+mat1=data.frame(matp,t1)
+mat2=mat1[!is.na(mat1$t1),]
+data0=mat2
+data0=data0[,-c(1)]
+###
+x1.1=rowSums(data0[,1:2])
+xx2=data.frame(x1.1,data0[,-c(1,2,5)])
+xx3=filter(xx2, xx2$x1.1 > 0)
+
+####
+#t1=min(xx3$t1)
+yearini1 <- min(xx3$t1)
+tt1 <- xx3$t1 - yearini1
+tt1=as.numeric(tt1)
+tp1<-c(0:100)
+xx4=xx3[,-c(4)]
+xx4=prop_row(xx4[,c(1:length(xx4))])*100
+
+#Plot3:Transformation isometric log-ratio (ilr) and Models
+signs1 <- rbind (c( 1, -1, 1),c(-1, 0, +1)); 
+VV1=gsi.buildilrBase(t(signs1))
+dd1<- unclass(ilr(xx4,VV1))
+dd1
+#Model
+kk=4
+gam1.1 <- gam(dd1[,1]~ s(tt1,k=kk), family=gaussian);gam1.1.pred <- predict.gam(gam1.1) 
+gam2.1 <- gam(dd1[,2]~ s(tt1,k=kk), family=gaussian);gam2.1.pred <- predict.gam(gam2.1)
+##Metric R-adj in GAM
+r.sq1.1=format(round(summary(gam1.1)$r.sq,digits=3),nsmall=3)
+r.sq2.1=format(round(summary(gam2.1)$r.sq,digits=3),nsmall=3)
+#Plot4:Predict (Year:2000-2020) (ilr), and inverse transformation.
+#Predict (Year:2000-2020) (ilr)
+gam1.p1 <- predict.gam(gam1.1,data.frame(tt1=tp1));  
+gam1.p2 <- predict.gam(gam2.1,data.frame(tt1=tp1)); 
+
+#Inverse transformation (ilr)  
+zm1<-ilrInv(array(cbind(gam1.1.pred,gam2.1.pred),dim = c(length(gam1.1.pred),2)),VV1)  #For metric NSE
+zzz1<-ilrInv(array(cbind(gam1.p1,gam1.p2),dim = c(length(gam1.p1),2)),VV1)  #For plot (Year:2000-2020) 
+#Metric in data
+#a1.1=format(round(NSE(zm1[,1]*100,xx4[,1]),digits=3),nsmall=3); #For metric NSE  
+#a2.1=format(round(NSE(zm1[,2]*100,xx4[,2]),digits=3),nsmall=3); #For metric NSE 
+
+###
+plot(tt1,xx4[,1],lty=2,pch=2,main=title("x1.1"), xlab="day",ylab="Coverage",ylim=c(0,100),xlim=c(0,100)); 
+points(tt1,xx4[,2], col="blue"); 
+points(tt1,xx4[,3], col="red"); 
+points(tp1,zzz1[,1]*100, type="l", col="black"); 
+points(tp1,zzz1[,2]*100, type="l", col="blue"); 
+points(tp1,zzz1[,3]*100, type="l", col="red"); 
+
+####
+library(gridExtra)
+f1 <- ggplot(xx3, aes(t1, x1.1))+geom_point()+geom_smooth(method = "gam")
+f2 <- ggplot(xx3, aes(t1, x3))+geom_point()+geom_smooth(method = "gam")
+f3 <- ggplot(xx3, aes(t1, x4))+geom_point()+geom_smooth(method = "gam")
+grid.arrange(f1,f2,f3, ncol=3, nrow = 3)
+
+f1
+f2
+f3
