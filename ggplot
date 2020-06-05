@@ -1,0 +1,58 @@
+rm(list = ls())
+library(graphics);library(car);library(tidyverse);library(lubridate);library(haven);library(expss);
+library(ggplot2);library(gridExtra)
+setwd("C:/Users/aleja/Downloads");
+filename<-"positivos_covid (2).csv";
+data2<-read.csv(file=filename, header=TRUE, sep = ",", dec = ".");
+data3=data2[,1:8]
+#Recodificando
+data3$ed <- Recode(data3$EDAD, "0:3=1; 4:5=2; 6:65=3; 66:130=4")
+table(data3$ed)
+
+###Recodificando los NA (Se considera que aún está pendiente de subir los datos o faltan procesar)
+data3$ed[is.na(data3$ed)] <- 5
+table(data3$ed)
+
+#Label
+data3$edl <- factor(data3$ed, labels = c("x1", "x2", "x3", "x4","x5"))
+table(data3$edl)
+data4=data3[,1:10]
+tabla_matp <-xtabs(~FECHA_RESULTADO+edl, data = data4)
+tabla_matp
+
+#convirtiendo los datos en un data frame
+tabla2_matp <- as.data.frame(tabla_matp)
+tabla2_matp
+
+library(reshape2)
+
+matp <- dcast(tabla2_matp, FECHA_RESULTADO ~ edl)
+t1=as.Date(matp$FECHA_RESULTADO,format="%d/%m/%Y")
+mat1=data.frame(matp,t1)
+mat2=mat1[!is.na(mat1$t1),]
+data0=mat2
+data0=data0[,-c(1)]
+###
+x1.1=rowSums(data0[,1:2])
+xx2=data.frame(x1.1,data0[,-c(1,2,5)])
+xx3=filter(xx2, xx2$x1.1 > 0)
+
+
+####
+xt=rowSums(xx3[,1:3])
+xf=data.frame(xx3$t1,xt)
+ft <- ggplot(xf, aes(xx3.t1 ,xt))+geom_point()+geom_smooth(method = "gam")
+f1 <- ggplot(xx3, aes(t1, x1.1))+geom_point()+geom_smooth(method = "loess")
+#f2 <- ggplot(xx3, aes(t1, x1.1))+geom_point()+geom_smooth(method = "gam")
+#f3 <- ggplot(xx3, aes(t1, x1.1))+geom_point()+geom_smooth(method = "loess")
+f2 <- ggplot(xx3, aes(t1, x3))+geom_point()+geom_smooth(method = "gam")
+f3 <- ggplot(xx3, aes(t1, x4))+geom_point()+geom_smooth(method = "loess")
+grid.arrange(ft,f1,f2,f3, ncol=4, nrow = 1)
+ft
+f4
+
+#solo ggplot, datos desagregados por edad
+#x1.1: hasta 5 años
+#x3: 5-65 años
+#x4: 65-más
+#xt: total de positivos
